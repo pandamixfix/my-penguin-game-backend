@@ -13,7 +13,12 @@ ratingController.getTopPlayers = async (req, res) => {
     });
 
     const topPlayers = topPlayersData.map((user, index) => {
-      const player = { ...user, place: index + 1, score: Number(user.score) };
+      const player = {
+        ...user,
+        id: user.id.toString(),        
+        score: user.score.toString(),   
+        place: index + 1
+      };
       if (index === 0) player.rank = 'gold';
       if (index === 1) player.rank = 'silver';
       if (index === 2) player.rank = 'bronze';
@@ -46,7 +51,12 @@ ratingController.getCurrentPlayer = async (req, res) => {
       where: { score: { gt: user.score } },
     });
 
-    res.json({ ...user, score: Number(user.score), place: playersAhead + 1 });
+    res.json({
+      ...user,
+      id: user.id.toString(),         // <--- ИЗМЕНЕНИЕ 3
+      score: user.score.toString(),   // <--- ИЗМЕНЕНИЕ 4
+      place: playersAhead + 1
+    });
   } catch (error) {
     console.error('Ошибка в getCurrentPlayer:', error);
     res.status(500).json({ message: "Ошибка сервера при поиске игрока" });
