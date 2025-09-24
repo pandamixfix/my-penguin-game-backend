@@ -1,5 +1,22 @@
 // index.js
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('!!! UNHANDLED REJECTION !!!');
+  console.error('Причина:', reason);
+  console.error('Промис:', promise);
+  // Завершаем процесс, чтобы Docker его перезапустил
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('!!! UNCAUGHT EXCEPTION !!!');
+  console.error('Ошибка:', error);
+  // Завершаем процесс, чтобы Docker его перезапустил
+  process.exit(1);
+});
+// =================================================================
+
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
