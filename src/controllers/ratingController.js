@@ -1,8 +1,9 @@
 // my-react-app-backend/src/controllers/ratingController.js
 
-// Используем синтаксис CommonJS, который понимает Node.js
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+// --- ДОБАВЛЕНО: Импортируем клиент Supabase для отправки real-time сообщений ---
+const supabase = require('../supabaseClient'); 
 const ratingController = {};
 
 ratingController.getTopPlayers = async (req, res) => {
@@ -12,12 +13,14 @@ ratingController.getTopPlayers = async (req, res) => {
       orderBy: { score: 'desc' },
     });
 
+    // --- ИСПРАВЛЕНО: Конвертируем BigInt в String для каждого игрока ---
+    // JSON не умеет работать с BigInt, поэтому это обязательный шаг.
     const topPlayers = topPlayersData.map((user, index) => {
-      const player = {
-        ...user,
-        id: user.id.toString(),        
-        score: user.score.toString(),   
-        place: index + 1
+      const player = { 
+        ...user, 
+        id: user.id.toString(),         // Конвертируем ID
+        score: user.score.toString(),   // Конвертируем очки
+        place: index + 1 
       };
       if (index === 0) player.rank = 'gold';
       if (index === 1) player.rank = 'silver';
@@ -51,11 +54,12 @@ ratingController.getCurrentPlayer = async (req, res) => {
       where: { score: { gt: user.score } },
     });
 
-    res.json({
-      ...user,
-      id: user.id.toString(),         // <--- ИЗМЕНЕНИЕ 3
-      score: user.score.toString(),   // <--- ИЗМЕНЕНИЕ 4
-      place: playersAhead + 1
+    // --- ИСПРАВЛЕНО: Конвертируем BigInt в String перед отправкой JSON ---
+    res.json({ 
+      ...user, 
+      id: user.id.toString(),         // Конвертируем ID
+      score: user.score.toString(),   // Конвертируем очки
+      place: playersAhead + 1 
     });
   } catch (error) {
     console.error('Ошибка в getCurrentPlayer:', error);
@@ -80,6 +84,16 @@ ratingController.addClick = async (req, res) => {
         score: clickCount,
       },
     });
+
+    // --- ДОБАВЛЕНО: Отправляем real-time сигнал всем клиентам, что рейтинг обновился ---
+    const channel = supabase.channel('rating-updates');
+    await channel.send({
+      type: 'broadcast',
+      event: 'new_click',
+      payload: { message: `User ${userId} clicked!` },
+    });
+    // ------------------------------------------------------------------------------------
+
     res.status(200).json({ message: `Клики (${clickCount}) успешно засчитаны!` });
   } catch (error) {
     console.error('Ошибка в addClick:', error);
@@ -87,5 +101,4 @@ ratingController.addClick = async (req, res) => {
   }
 };
 
-// Экспортируем весь объект целиком
 module.exports = ratingController;
