@@ -25,7 +25,9 @@ const app = express();
 const PORT = 3001;
 
 // Подключаем middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173' // Явно разрешаем запросы только с твоего фронтенда
+}));
 app.use(express.json({ type: ['application/json', 'text/plain'] }));
 
 // Импортируем наши маршруты
