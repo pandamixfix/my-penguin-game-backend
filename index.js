@@ -25,8 +25,21 @@ const app = express();
 const PORT = 3001;
 
 // Подключаем middleware
+// Создаем список разрешенных адресов
+const allowedOrigins = [
+  'http://localhost:5173',      // Для локальной разработки
+  'https://n8nvps.devpixelka.ru'  // Для твоего "боевого" сайта
+];
+
 app.use(cors({
-  origin: 'http://localhost:5173' // Явно разрешаем запросы только с твоего фронтенда
+  origin: function (origin, callback) {
+    // Если запрос приходит с одного из разрешенных адресов (или это не браузерный запрос)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
 }));
 app.use(express.json({ type: ['application/json', 'text/plain'] }));
 
