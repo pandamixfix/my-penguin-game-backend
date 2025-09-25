@@ -1,8 +1,6 @@
 // my-react-app-backend/src/controllers/ratingController.js
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-// const supabase = require('../supabaseClient'); // <--- ЗАКОММЕНТИРОВАЛИ
+const prisma = require('../lib/prisma.js');
 const ratingController = {};
 
 ratingController.getTopPlayers = async (req, res) => {
