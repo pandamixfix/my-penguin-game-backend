@@ -1,15 +1,24 @@
-// my-react-app-backend/src/controllers/ratingController.js
+// Заменяем prisma на наш новый supabase клиент
+const supabase = require('../config/supabaseClient'); 
 
-const prisma = require('../../lib/prisma.js');
 const ratingController = {};
 
+// --- 1. ПОЛУЧЕНИЕ ТОП-ИГРОКОВ ---
 ratingController.getTopPlayers = async (req, res) => {
   try {
-    const topPlayersData = await prisma.players_fidele_game.findMany({
-      take: 30,
-      orderBy: { score: 'desc' },
-    });
+    // Вместо prisma.findMany используем синтаксис Supabase
+    const { data: topPlayersData, error } = await supabase
+      .from('players_fidele_game') // Указываем таблицу
+      .select('*')                 // Выбираем все колонки
+      .order('score', { ascending: false }) // Сортируем по очкам (score) по убыванию
+      .limit(30);                   // Ограничиваем выборку 30 игроками
 
+    // Если Supabase вернул ошибку, отправляем ее на фронтенд
+    if (error) {
+      throw error;
+    }
+
+    // Эта часть кода остается без изменений, она форматирует данные для фронтенда
     const topPlayers = topPlayersData.map((user, index) => {
       const player = { 
         ...user, 
@@ -30,6 +39,7 @@ ratingController.getTopPlayers = async (req, res) => {
   }
 };
 
+// --- 2. ПОЛУЧЕНИЕ ТЕКУЩЕГО ИГРОКА ---
 ratingController.getCurrentPlayer = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -38,16 +48,27 @@ ratingController.getCurrentPlayer = async (req, res) => {
       return res.status(404).json({ message: "Игрок не найден (неверный ID)" });
     }
 
-    const userIdBigInt = BigInt(userId);
-    const user = await prisma.players_fidele_game.findUnique({ where: { id: userIdBigInt } });
+    // Ищем одного конкретного игрока по его ID
+    const { data: user, error: userError } = await supabase
+      .from('players_fidele_game')
+      .select('*')
+      .eq('id', userId) // .eq() это "equals", аналог "where id = userId"
+      .single(); // .single() говорит, что мы ожидаем только одну запись
 
-    if (!user) {
+    if (userError) {
+      // Если .single() не нашел игрока, он вернет ошибку, которую мы обработаем
       return res.status(404).json({ message: "Игрок не найден в базе" });
     }
     
-    const playersAhead = await prisma.players_fidele_game.count({
-      where: { score: { gt: user.score } },
-    });
+    // Считаем, сколько игроков имеют больше очков
+    const { count: playersAhead, error: countError } = await supabase
+        .from('players_fidele_game')
+        .select('*', { count: 'exact', head: true }) // head:true для эффективности, нам нужно только число
+        .gt('score', user.score); // .gt() это "greater than", т.е. "score > user.score"
+
+    if (countError) {
+        throw countError;
+    }
 
     res.json({ 
       ...user, 
@@ -61,32 +82,25 @@ ratingController.getCurrentPlayer = async (req, res) => {
   }
 };
 
+// --- 3. ОБНОВЛЕНИЕ/ДОБАВЛЕНИЕ ОЧКОВ (САМОЕ ВАЖНОЕ!) ---
 ratingController.addClick = async (req, res) => {
   const { userId, userName, clickCount = 1 } = req.body;
   if (!userId) {
     return res.status(400).json({ error: 'userId не был предоставлен' });
   }
   
-  const userIdBigInt = BigInt(userId);
   try {
-    await prisma.players_fidele_game.upsert({
-      where: { id: userIdBigInt },
-      update: { score: { increment: clickCount } },
-      create: {
-        id: userIdBigInt,
-        name: userName || `Пингвин #${userId.slice(0, 4)}`,
-        score: clickCount,
-      },
+    // Вместо prisma.upsert мы будем использовать "удаленную процедуру" (RPC)
+    // Это специальная функция внутри самой базы данных. Это самый правильный и безопасный способ.
+    const { error } = await supabase.rpc('increment_score', {
+        user_id_in: userId,
+        user_name_in: userName || `Пингвин #${String(userId).slice(0, 4)}`,
+        increment_amount: clickCount
     });
 
-    /* --- УБРАЛИ ОТПРАВКУ REAL-TIME СООБЩЕНИЯ ---
-    const channel = supabase.channel('rating-updates');
-    await channel.send({
-      type: 'broadcast',
-      event: 'new_click',
-      payload: { message: `User ${userId} clicked!` },
-    });
-    */
+    if (error) {
+        throw error;
+    }
 
     res.status(200).json({ message: `Клики (${clickCount}) успешно засчитаны!` });
   } catch (error) {
