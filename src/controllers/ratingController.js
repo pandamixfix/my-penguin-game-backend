@@ -2,8 +2,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-// --- ДОБАВЛЕНО: Импортируем клиент Supabase для отправки real-time сообщений ---
-const supabase = require('../supabaseClient'); 
+// const supabase = require('../supabaseClient'); // <--- ЗАКОММЕНТИРОВАЛИ
 const ratingController = {};
 
 ratingController.getTopPlayers = async (req, res) => {
@@ -13,13 +12,11 @@ ratingController.getTopPlayers = async (req, res) => {
       orderBy: { score: 'desc' },
     });
 
-    // --- ИСПРАВЛЕНО: Конвертируем BigInt в String для каждого игрока ---
-    // JSON не умеет работать с BigInt, поэтому это обязательный шаг.
     const topPlayers = topPlayersData.map((user, index) => {
       const player = { 
         ...user, 
-        id: user.id.toString(),         // Конвертируем ID
-        score: user.score.toString(),   // Конвертируем очки
+        id: user.id.toString(),
+        score: user.score.toString(),
         place: index + 1 
       };
       if (index === 0) player.rank = 'gold';
@@ -54,11 +51,10 @@ ratingController.getCurrentPlayer = async (req, res) => {
       where: { score: { gt: user.score } },
     });
 
-    // --- ИСПРАВЛЕНО: Конвертируем BigInt в String перед отправкой JSON ---
     res.json({ 
       ...user, 
-      id: user.id.toString(),         // Конвертируем ID
-      score: user.score.toString(),   // Конвертируем очки
+      id: user.id.toString(),
+      score: user.score.toString(),
       place: playersAhead + 1 
     });
   } catch (error) {
@@ -85,14 +81,14 @@ ratingController.addClick = async (req, res) => {
       },
     });
 
-    // --- ДОБАВЛЕНО: Отправляем real-time сигнал всем клиентам, что рейтинг обновился ---
+    /* --- УБРАЛИ ОТПРАВКУ REAL-TIME СООБЩЕНИЯ ---
     const channel = supabase.channel('rating-updates');
     await channel.send({
       type: 'broadcast',
       event: 'new_click',
       payload: { message: `User ${userId} clicked!` },
     });
-    // ------------------------------------------------------------------------------------
+    */
 
     res.status(200).json({ message: `Клики (${clickCount}) успешно засчитаны!` });
   } catch (error) {
