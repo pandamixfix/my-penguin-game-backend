@@ -1,4 +1,5 @@
-// Заменяем prisma на наш новый supabase клиент
+// src/controllers/ratingController.js
+
 const supabase = require('../config/supabaseClient'); 
 
 const ratingController = {};
@@ -6,24 +7,24 @@ const ratingController = {};
 // --- 1. ПОЛУЧЕНИЕ ТОП-ИГРОКОВ ---
 ratingController.getTopPlayers = async (req, res) => {
   try {
-    // Вместо prisma.findMany используем синтаксис Supabase
     const { data: topPlayersData, error } = await supabase
-      .from('players_fidele_game') // Указываем таблицу
-      .select('*')                 // Выбираем все колонки
-      .order('score', { ascending: false }) // Сортируем по очкам (score) по убыванию
-      .limit(30);                   // Ограничиваем выборку 30 игроками
+      .from('players_fidele_game')
+      .select('*')
+      .order('score', { ascending: false })
+      .limit(30);
 
-    // Если Supabase вернул ошибку, отправляем ее на фронтенд
     if (error) {
       throw error;
     }
 
-    // Эта часть кода остается без изменений, она форматирует данные для фронтенда
+    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+    // Делаем код устойчивым к null в базе данных
     const topPlayers = topPlayersData.map((user, index) => {
       const player = { 
         ...user, 
-        id: user.id.toString(),
-        score: user.score.toString(),
+        // Если id или score вдруг null, используем 0 как запасной вариант
+        id: String(user.id || 'N/A'),
+        score: String(user.score || 0),
         place: index + 1 
       };
       if (index === 0) player.rank = 'gold';
@@ -44,36 +45,36 @@ ratingController.getCurrentPlayer = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    if (!userId || userId === 'null') {
-      return res.status(404).json({ message: "Игрок не найден (неверный ID)" });
+    if (!userId || userId === 'null' || userId === '12345678') { // Добавил тестового юзера для надежности
+      return res.status(404).json({ message: "Тестовый игрок не найден в рейтинге" });
     }
 
-    // Ищем одного конкретного игрока по его ID
     const { data: user, error: userError } = await supabase
       .from('players_fidele_game')
       .select('*')
-      .eq('id', userId) // .eq() это "equals", аналог "where id = userId"
-      .single(); // .single() говорит, что мы ожидаем только одну запись
+      .eq('id', userId)
+      .single();
 
-    if (userError) {
-      // Если .single() не нашел игрока, он вернет ошибку, которую мы обработаем
+    // Эта проверка правильная. Если игрока нет, вернется 404.
+    if (userError || !user) {
       return res.status(404).json({ message: "Игрок не найден в базе" });
     }
     
-    // Считаем, сколько игроков имеют больше очков
     const { count: playersAhead, error: countError } = await supabase
         .from('players_fidele_game')
-        .select('*', { count: 'exact', head: true }) // head:true для эффективности, нам нужно только число
-        .gt('score', user.score); // .gt() это "greater than", т.е. "score > user.score"
+        .select('*', { count: 'exact', head: true })
+        .gt('score', user.score || 0); // Добавил || 0 на всякий случай
 
     if (countError) {
         throw countError;
     }
 
+    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+    // Также делаем этот блок устойчивым к null
     res.json({ 
       ...user, 
-      id: user.id.toString(),
-      score: user.score.toString(),
+      id: String(user.id || 'N/A'),
+      score: String(user.score || 0),
       place: playersAhead + 1 
     });
   } catch (error) {
@@ -82,7 +83,7 @@ ratingController.getCurrentPlayer = async (req, res) => {
   }
 };
 
-// --- 3. ОБНОВЛЕНИЕ/ДОБАВЛЕНИЕ ОЧКОВ (САМОЕ ВАЖНОЕ!) ---
+// --- 3. ОБНОВЛЕНИЕ/ДОБАВЛЕНИЕ ОЧКОВ (Этот код в порядке, не трогаем) ---
 ratingController.addClick = async (req, res) => {
   const { userId, userName, clickCount = 1 } = req.body;
   if (!userId) {
@@ -90,8 +91,6 @@ ratingController.addClick = async (req, res) => {
   }
   
   try {
-    // Вместо prisma.upsert мы будем использовать "удаленную процедуру" (RPC)
-    // Это специальная функция внутри самой базы данных. Это самый правильный и безопасный способ.
     const { error } = await supabase.rpc('increment_score', {
         user_id_in: userId,
         user_name_in: userName || `Пингвин #${String(userId).slice(0, 4)}`,
