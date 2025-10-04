@@ -1,5 +1,5 @@
 // src/services/ratingService.js
-const prisma = require('../lib/prisma.js');
+const prisma = require('../../lib/prisma.js');
 
 const ratingService = {};
 

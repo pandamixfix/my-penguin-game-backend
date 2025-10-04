@@ -1,7 +1,7 @@
 // src/services/memoryGameService.js (НОВАЯ, ИСПРАВЛЕННАЯ ВЕРСИЯ С PRISMA)
 
 // --- ИЗМЕНЕНИЕ: Используем Prisma вместо Supabase Client ---
-const prisma = require('../lib/prisma.js');
+const prisma = require('../../lib/prisma.js');
 const ratingService = require('./ratingService'); 
 
 const COOLDOWN_MS = 8 * 60 * 60 * 1000;
