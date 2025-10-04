@@ -46,7 +46,8 @@ ratingController.getTopPlayers = async (req, res, next) => {
         const topPlayers = await ratingService.getTopPlayers();
         const playersToSend = topPlayers.map(player => ({
             ...player,
-            score: player.score.toString(),
+            id: player.id.toString(),
+            score: player.score ? player.score.toString() : '0',
         }));
         res.status(200).json(playersToSend);
     } catch (error) {
