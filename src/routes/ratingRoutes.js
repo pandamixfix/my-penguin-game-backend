@@ -6,6 +6,6 @@ const ratingController = require('../controllers/ratingController');
 
 router.get('/top', ratingController.getTopPlayers);
 router.get('/me/:userId', ratingController.getCurrentPlayer);
-router.post('/click', ratingController.addClick);
+router.post('/save', ratingController.savePlayerProgress);
 
 module.exports = router;

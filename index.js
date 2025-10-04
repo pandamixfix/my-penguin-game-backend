@@ -1,63 +1,50 @@
 // index.js
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('!!! UNHANDLED REJECTION !!!');
-  console.error('Причина:', reason);
-  console.error('Промис:', promise);
-  // Завершаем процесс, чтобы Docker его перезапустил
-  process.exit(1);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('!!! UNCAUGHT EXCEPTION !!!');
-  console.error('Ошибка:', error);
-  // Завершаем процесс, чтобы Docker его перезапустил
-  process.exit(1);
-});
-// =================================================================
-
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const ratingRoutes = require('./src/routes/ratingRoutes');
+const telegramRoutes = require('./src/routes/telegramRoutes');
+const errorHandler = require('./src/utils/errorHandler');
+const memoryGameRoutes = require('./src/routes/memoryGameRoutes');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
-// Подключаем middleware
-// Создаем список разрешенных адресов
 const allowedOrigins = [
-  'http://localhost:5173',      // Для локальной разработки
-  'https://n8nvps.devpixelka.ru'  // Для твоего "боевого" сайта
+  'http://localhost:5173',
+  'https://n8nvps.devpixelka.ru'
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Если запрос приходит с одного из разрешенных адресов (или это не браузерный запрос)
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   }
 }));
-app.use(express.json({ type: ['application/json', 'text/plain'] }));
 
-// Импортируем наши маршруты
-const telegramRoutes = require('./src/routes/telegramRoutes');
-const ratingRoutes = require('./src/routes/ratingRoutes');
+app.use(express.json());
 
-// Используем маршруты с префиксами
-app.use('/', telegramRoutes); // Адрес будет /verify-subscription
-app.use('/api/rating', ratingRoutes); // Адреса будут /api/rating/top и /api/rating/me/:userId
+app.use('/', telegramRoutes);
+app.use('/api/rating', ratingRoutes);
 
-// Запускаем сервер
+app.use(errorHandler);
+app.use('/api/game', memoryGameRoutes);
 app.listen(PORT, () => {
-  console.log(`Сервер слушает порт ${PORT}`);
-  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHANNEL_ID) {
-    console.error('ОШИБКА: Проверь, что TELEGRAM_BOT_TOKEN и TELEGRAM_CHANNEL_ID заданы в файле .env');
-  } else {
-    console.log('Конфигурация сервера успешно загружена.');
-    console.log(`Проверка будет осуществляться для канала: ${process.env.TELEGRAM_CHANNEL_ID}`);
+  console.log(`Server is running on port ${PORT}`);
+  
+  if (!process.env.DATABASE_URL) {
+      console.error('FATAL ERROR: DATABASE_URL is not defined in .env file.');
+      process.exit(1);
   }
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHANNEL_ID) {
+    console.warn('WARNING: Telegram integration variables (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID) are not defined in .env file.');
+  } else {
+    console.log(`Telegram check is configured for channel: ${process.env.TELEGRAM_CHANNEL_ID}`);
+  }
+  
+  console.log('Server configuration loaded successfully.');
 });
