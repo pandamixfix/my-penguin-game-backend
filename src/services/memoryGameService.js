@@ -1,6 +1,7 @@
-// src/services/memoryGameService.js
+// src/services/memoryGameService.js (НОВАЯ, ИСПРАВЛЕННАЯ ВЕРСИЯ С PRISMA)
 
-const supabase = require('../supabaseClient');
+// --- ИЗМЕНЕНИЕ: Используем Prisma вместо Supabase Client ---
+const prisma = require('../config/prismaClient'); 
 const ratingService = require('./ratingService'); 
 
 const COOLDOWN_MS = 8 * 60 * 60 * 1000;
@@ -16,30 +17,24 @@ const shuffleArray = (array) => {
   return newArray;
 };
 
-
 const memoryGameService = {};
 
 memoryGameService.getGameStatus = async (userId) => {
-  const { data, error } = await supabase
-    .from('memory_game_state')
-    .select('last_game_started_at, current_game_state, time_left_ms')
-    .eq('user_id', userId)
-    .single();
+  const numericUserId = parseInt(userId, 10); // Prisma ожидает число
+  const gameState = await prisma.memory_game_state.findUnique({
+    where: { user_id: numericUserId },
+  });
 
-  if (error && error.code !== 'PGRST116') { 
-    throw new Error('Failed to fetch game status from database.');
-  }
-
-  if (data?.current_game_state && data.time_left_ms > 0) {
+  if (gameState?.current_game_state && gameState.time_left_ms > 0) {
     return { 
       status: 'confirmContinue', 
-      cards: data.current_game_state,
-      timeLeft: Math.floor(data.time_left_ms / 1000)
+      cards: gameState.current_game_state,
+      timeLeft: Math.floor(gameState.time_left_ms / 1000)
     };
   }
 
-  if (data?.last_game_started_at) {
-    const lastPlayTime = new Date(data.last_game_started_at).getTime();
+  if (gameState?.last_game_started_at) {
+    const lastPlayTime = new Date(gameState.last_game_started_at).getTime();
     const cooldownEndTime = lastPlayTime + COOLDOWN_MS;
     if (new Date().getTime() < cooldownEndTime) {
       return { status: 'cooldown', cooldownEndTime };
@@ -50,54 +45,55 @@ memoryGameService.getGameStatus = async (userId) => {
 };
 
 memoryGameService.startGame = async (userId) => {
+  const numericUserId = parseInt(userId, 10);
   const newCards = shuffleArray([...CARD_VALUES, ...CARD_VALUES]).map((val, i) => ({ 
-    id: i, 
-    type: val, 
-    isFlipped: true,
-    isMatched: false 
+    id: i, type: val, isFlipped: true, isMatched: false 
   }));
 
-  const { data, error } = await supabase.from('memory_game_state').upsert({
-    user_id: userId,
-    current_game_state: newCards,
-    time_left_ms: GAME_DURATION_SECONDS * 1000,
-    last_game_started_at: null
-  }, { onConflict: 'user_id' });
-
-  if (error) {
-    throw new Error('Failed to start game.');
-  }
+  await prisma.memory_game_state.upsert({
+    where: { user_id: numericUserId },
+    update: {
+      current_game_state: newCards,
+      time_left_ms: GAME_DURATION_SECONDS * 1000,
+      last_game_started_at: null
+    },
+    create: {
+      user_id: numericUserId,
+      current_game_state: newCards,
+      time_left_ms: GAME_DURATION_SECONDS * 1000,
+    }
+  });
 
   return { cards: newCards, timeLeft: GAME_DURATION_SECONDS };
 };
 
 memoryGameService.saveGameState = async (userId, cards, timeLeft) => {
-  const { error } = await supabase.from('memory_game_state').update({
-    current_game_state: cards,
-    time_left_ms: timeLeft * 1000,
-  }).eq('user_id', userId);
-
-  if (error) {
-    throw new Error('Failed to save game state.');
-  }
+  const numericUserId = parseInt(userId, 10);
+  await prisma.memory_game_state.update({
+    where: { user_id: numericUserId },
+    data: {
+      current_game_state: cards,
+      time_left_ms: timeLeft * 1000,
+    },
+  });
   return { message: 'State saved' };
 };
 
 memoryGameService.endGame = async (userId, outcome, stars, fullPlayerProgress) => {
+  const numericUserId = parseInt(userId, 10);
   let earnedGold = 0;
   if (outcome === 'won') {
     earnedGold = stars * 100;
   }
 
-  const { error } = await supabase.from('memory_game_state').update({
-    last_game_started_at: new Date().toISOString(),
-    current_game_state: null,
-    time_left_ms: 0,
-  }).eq('user_id', userId);
-
-  if (error) {
-    throw new Error('Failed to update game end state.');
-  }
+  await prisma.memory_game_state.update({
+    where: { user_id: numericUserId },
+    data: {
+      last_game_started_at: new Date().toISOString(),
+      current_game_state: null,
+      time_left_ms: 0,
+    }
+  });
 
   if (earnedGold > 0) {
     const updatedProgress = {
