@@ -16,8 +16,9 @@ ratingService.getPlayerProgress = async (userId) => {
   return player;
 };
 
+
 ratingService.savePlayerProgress = async (progressData) => {
-  const { id, name, score, gold, upgrades } = progressData;
+  const { id, name, score, gold, player_upgrades: upgrades } = progressData;
   const numericUserId = BigInt(id);
 
   return prisma.$transaction(async (tx) => {
@@ -27,24 +28,25 @@ ratingService.savePlayerProgress = async (progressData) => {
       create: { id: numericUserId, score: BigInt(score), gold, name },
     });
 
-    const upgradePromises = upgrades.map(upgrade => 
-      tx.player_upgrades.upsert({
-        where: {
-          player_id_upgrade_type: {
+    if (Array.isArray(upgrades)) {
+      const upgradePromises = upgrades.map(upgrade => 
+        tx.player_upgrades.upsert({
+          where: {
+            player_id_upgrade_type: {
+              player_id: numericUserId,
+              upgrade_type: upgrade.upgrade_type,
+            },
+          },
+          update: { level: upgrade.level },
+          create: {
             player_id: numericUserId,
             upgrade_type: upgrade.upgrade_type,
+            level: upgrade.level,
           },
-        },
-        update: { level: upgrade.level },
-        create: {
-          player_id: numericUserId,
-          upgrade_type: upgrade.upgrade_type,
-          level: upgrade.level,
-        },
-      })
-    );
-
-    await Promise.all(upgradePromises);
+        })
+      );
+      await Promise.all(upgradePromises);
+    }
 
     return player;
   });
