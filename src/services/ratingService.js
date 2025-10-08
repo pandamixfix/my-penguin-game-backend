@@ -1,5 +1,5 @@
 // Вверху файла импортируем конфиг
-const { shopItemsConfig } = require('../../../packages/shared-config/shopConfig'); 
+const { shopItemsConfig } = require('../shared-config/shopConfig');
 const prisma = require('../../lib/prisma');
 
 const ratingService = {};
