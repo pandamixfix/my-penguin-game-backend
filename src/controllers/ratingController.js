@@ -54,5 +54,17 @@ ratingController.getTopPlayers = async (req, res, next) => {
         next(error);
     }
 };
+ratingController.purchaseUpgrade = async (req, res, next) => {
+  try {
+    const { userId, upgradeId } = req.body;
+    if (!userId || !upgradeId) {
+      return res.status(400).json({ message: 'userId and upgradeId are required' });
+    }
+    const updatedPlayer = await ratingService.purchaseUpgrade(userId, upgradeId);
+    res.status(200).json(updatedPlayer); // Отправляем полный объект игрока
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports = ratingController;

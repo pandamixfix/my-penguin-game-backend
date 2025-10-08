@@ -1,63 +1,61 @@
-// src/services/ratingService.js
-const prisma = require('../../lib/prisma.js');
+// Вверху файла импортируем конфиг
+const { shopItemsConfig } = require('../../../packages/shared-config/shopConfig'); 
+const prisma = require('../../lib/prisma');
 
 const ratingService = {};
 
-ratingService.getPlayerProgress = async (userId) => {
-  const numericUserId = BigInt(userId);
+// ... (твои существующие функции getPlayerProgress, savePlayerProgress...)
 
-  const player = await prisma.players_fidele_game.findUnique({
-    where: { id: numericUserId },
-    include: {
-      player_upgrades: true,
-    },
-  });
+ratingService.purchaseUpgrade = async (userId, upgradeId) => {
+  const numericUserId = parseInt(userId, 10);
 
-  return player;
-};
+  // 1. Найти конфиг улучшения на сервере
+  const itemConfig = shopItemsConfig.find(item => item.id === upgradeId);
+  if (!itemConfig) {
+    throw new Error('Invalid upgrade ID');
+  }
 
-
-ratingService.savePlayerProgress = async (progressData) => {
-  const { id, name, score, gold, player_upgrades: upgrades } = progressData;
-  const numericUserId = BigInt(id);
-
+  // 2. Выполняем все в транзакции для 100% надежности
   return prisma.$transaction(async (tx) => {
-    const player = await tx.players_fidele_game.upsert({
+    const player = await tx.players_fidele_game.findUnique({
       where: { id: numericUserId },
-      update: { score: BigInt(score), gold, name },
-      create: { id: numericUserId, score: BigInt(score), gold, name },
+      include: { player_upgrades: true },
     });
 
-    if (Array.isArray(upgrades)) {
-      const upgradePromises = upgrades.map(upgrade => 
-        tx.player_upgrades.upsert({
-          where: {
-            player_id_upgrade_type: {
-              player_id: numericUserId,
-              upgrade_type: upgrade.upgrade_type,
-            },
-          },
-          update: { level: upgrade.level },
-          create: {
-            player_id: numericUserId,
-            upgrade_type: upgrade.upgrade_type,
-            level: upgrade.level,
-          },
-        })
-      );
-      await Promise.all(upgradePromises);
+    if (!player) throw new Error('Player not found');
+
+    const currentUpgrade = player.player_upgrades.find(upg => upg.upgrade_type === upgradeId);
+    const currentLevel = currentUpgrade ? currentUpgrade.level : 0;
+
+    // 3. ВАЛИДАЦИЯ НА СЕРВЕРЕ
+    if (currentLevel >= itemConfig.maxLevel) {
+      throw new Error('Maximum level reached');
     }
 
-    return player;
-  });
-};
+    // 4. Расчет цены на сервере из массива costs
+    const cost = itemConfig.costs[currentLevel];
+    if (player.gold < cost) {
+      throw new Error('Not enough gold');
+    }
 
-ratingService.getTopPlayers = async () => {
-  const topPlayers = await prisma.players_fidele_game.findMany({
-    orderBy: { score: 'desc' },
-    take: 30,
+    // 5. Обновляем данные
+    await tx.players_fidele_game.update({
+      where: { id: numericUserId },
+      data: { gold: player.gold - cost },
+    });
+
+    await tx.player_upgrades.upsert({
+      where: { player_id_upgrade_type: { player_id: numericUserId, upgrade_type: upgradeId } },
+      update: { level: currentLevel + 1 },
+      create: { player_id: numericUserId, upgrade_type: upgradeId, level: 1 },
+    });
+    
+    // 6. Возвращаем полный обновленный стейт игрока
+    return tx.players_fidele_game.findUnique({
+        where: { id: numericUserId },
+        include: { player_upgrades: true }
+    });
   });
-  return topPlayers;
 };
 
 module.exports = ratingService;
