@@ -1,11 +1,19 @@
+# Dockerfile
+
 FROM node:18-alpine
+
 WORKDIR /usr/src/app
-COPY my-penguin-game-backend/package*.json ./
+
+COPY package*.json ./
+
+COPY prisma ./prisma/
+
 RUN npm install
-COPY my-penguin-game-backend/prisma ./prisma/
+
 RUN npx prisma generate
-COPY my-penguin-game-backend/ .
-COPY packages/ ./packages/
+
+COPY . .
+
 EXPOSE 3001
 
 CMD [ "npm", "start" ]
