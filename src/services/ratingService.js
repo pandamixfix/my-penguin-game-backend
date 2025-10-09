@@ -19,22 +19,45 @@ ratingService.getPlayerProgress = async (userId) => {
 };
 
 ratingService.savePlayerProgress = async (playerData) => {
-  const { id, name, score, gold } = playerData;
+  const { id, name, score, gold, upgrades } = playerData;
   const numericUserId = parseInt(id, 10);
 
-  return prisma.players_fidele_game.upsert({
-    where: { id: numericUserId },
-    update: {
-      name: name,
-      score: BigInt(score),
-      gold: gold,
-    },
-    create: {
-      id: numericUserId,
-      name: name,
-      score: BigInt(score),
-      gold: gold,
-    },
+  return prisma.$transaction(async (tx) => {
+    await tx.players_fidele_game.upsert({
+      where: { id: numericUserId },
+      update: {
+        name: name,
+        score: BigInt(score),
+        gold: gold,
+      },
+      create: {
+        id: numericUserId,
+        name: name,
+        score: BigInt(score),
+        gold: gold,
+      },
+    });
+
+    if (upgrades && Array.isArray(upgrades)) {
+      for (const upg of upgrades) {
+        await tx.player_upgrades.upsert({
+          where: {
+            player_id_upgrade_type: {
+              player_id: numericUserId,
+              upgrade_type: upg.upgrade_type,
+            },
+          },
+          update: { level: upg.level },
+          create: {
+            player_id: numericUserId,
+            upgrade_type: upg.upgrade_type,
+            level: upg.level,
+          },
+        });
+      }
+    }
+    
+    return { message: "Progress saved successfully" };
   });
 };
 
