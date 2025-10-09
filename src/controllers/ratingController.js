@@ -56,11 +56,11 @@ ratingController.getTopPlayers = async (req, res, next) => {
 
 ratingController.purchaseUpgrade = async (req, res, next) => {
   try {
-    const { userId, upgradeId } = req.body;
+    const { userId, upgradeId, count = 1 } = req.body; 
     if (!userId || !upgradeId) {
       return res.status(400).json({ message: 'userId and upgradeId are required' });
     }
-    const updatedPlayer = await ratingService.purchaseUpgrade(userId, upgradeId);
+    const updatedPlayer = await ratingService.purchaseUpgrade(userId, upgradeId, count); 
     
     const playerToSend = {
       ...updatedPlayer,
