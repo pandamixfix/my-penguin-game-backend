@@ -1,9 +1,11 @@
 FROM node:18-alpine
 WORKDIR /usr/src/app
 COPY package*.json ./
-COPY prisma ./prisma/
 RUN npm install
-RUN npx prisma generate
 COPY . .
+COPY prisma ./prisma/
+RUN npx prisma generate
+RUN npm run build
+RUN ls -R dist
 EXPOSE 3001
 CMD [ "npm", "start" ]
