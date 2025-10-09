@@ -1,8 +1,55 @@
+// src/services/ratingService.js
+
 // Вверху файла импортируем конфиг
 const { shopItemsConfig } = require('../shared-config/shopConfig');
 const prisma = require('../../lib/prisma');
 
 const ratingService = {};
+
+// НОВАЯ ФУНКЦИЯ
+ratingService.getPlayerProgress = async (userId) => {
+  const numericUserId = parseInt(userId, 10);
+  if (isNaN(numericUserId)) {
+    throw new Error('Invalid User ID');
+  }
+  
+  const player = await prisma.players_fidele_game.findUnique({
+    where: { id: numericUserId },
+    include: {
+      player_upgrades: true,
+    },
+  });
+  return player;
+};
+
+ratingService.savePlayerProgress = async (playerData) => {
+  const { id, name, score, gold, upgrades } = playerData;
+  const numericUserId = parseInt(id, 10);
+
+  return prisma.players_fidele_game.upsert({
+    where: { id: numericUserId },
+    update: {
+      name: name,
+      score: BigInt(score),
+      gold: gold,
+    },
+    create: {
+      id: numericUserId,
+      name: name,
+      score: BigInt(score),
+      gold: gold,
+    },
+  });
+};
+
+ratingService.getTopPlayers = async () => {
+    return prisma.players_fidele_game.findMany({
+        orderBy: {
+            score: 'desc',
+        },
+        take: 30, 
+    });
+};
 
 ratingService.purchaseUpgrade = async (userId, upgradeId) => {
   const numericUserId = parseInt(userId, 10);
