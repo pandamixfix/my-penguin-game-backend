@@ -6,6 +6,9 @@ COPY . .
 COPY prisma ./prisma/
 RUN npx prisma generate
 RUN npm run build
-RUN ls -R dist
+RUN echo "--- Listing contents of current directory before checking dist ---" && \
+    ls -la && \
+    echo "--- Checking dist directory ---" && \
+    (ls -R dist || echo "Dist directory NOT FOUND")
 EXPOSE 3001
 CMD [ "npm", "start" ]
