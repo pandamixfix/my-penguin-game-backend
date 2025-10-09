@@ -1,4 +1,3 @@
-// src/controllers/ratingController.js
 const ratingService = require('../services/ratingService');
 
 const ratingController = {};
@@ -54,6 +53,7 @@ ratingController.getTopPlayers = async (req, res, next) => {
         next(error);
     }
 };
+
 ratingController.purchaseUpgrade = async (req, res, next) => {
   try {
     const { userId, upgradeId } = req.body;
@@ -61,7 +61,18 @@ ratingController.purchaseUpgrade = async (req, res, next) => {
       return res.status(400).json({ message: 'userId and upgradeId are required' });
     }
     const updatedPlayer = await ratingService.purchaseUpgrade(userId, upgradeId);
-    res.status(200).json(updatedPlayer); // Отправляем полный объект игрока
+    
+    const playerToSend = {
+      ...updatedPlayer,
+      id: updatedPlayer.id.toString(),
+      score: updatedPlayer.score ? updatedPlayer.score.toString() : '0',
+      player_upgrades: updatedPlayer.player_upgrades.map(upg => ({
+        upgrade_type: upg.upgrade_type,
+        level: upg.level
+      }))
+    };
+    
+    res.status(200).json(playerToSend);
   } catch (error) {
     next(error);
   }
