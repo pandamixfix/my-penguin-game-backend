@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
+"scripts": {
+  "build": "cp -R ../packages/shared-config ./src/shared-config || true",
   "start": "npm run build && node index.js",
   "dev": "nodemon index.js",
   "test": "echo \"Error: no test specified\" && exit 1"
